@@ -1,0 +1,42 @@
+<!-- Complete project details: https://randomnerdtutorials.com/esp32-web-server-websocket-sliders/ -->
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>ESP IOT DASHBOARD</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" type="image/png" href="favicon.png">
+    <link rel="stylesheet" type="text/css" href="style.css">
+    <script src="https://code.highcharts.com/highcharts.js"></script>
+</head>
+<body>
+    <div class="topnav">
+        <h1>Air Fryer</h1>
+    </div>
+    <div class="content">
+        <form>
+            <div class="card-grid">
+                <div class="card">
+                    <p class="card-title">Temperature</p>
+                    <p class="switch">
+                        <input type="range" onchange="updateSliderPWM(this)" id="slider-temp" min="100" max="200" step="5" value ="0" class="slider">
+                    </p>
+                    <p class="state"><span id="slider-temp-value"></span> &#8451;</p>
+                </div>
+                <div class="card">
+                    <p class="card-title">Time</p>
+                    <p class="switch">
+                        <input type="range" onchange="updateSliderPWM(this)" id="slider-time" min="0" max="40" step="1" value ="0" class="slider">
+                    </p>
+                    <p class="state"><span id="slider-time-value"></span> minutes</p>
+                </div>
+            </div>
+        </form>
+        <button onclick="submitForm()">GO!</button>
+        <!-- <button onclick="submitForm()">STOP!</button> -->
+        <p>State: <span id="machine-state">Stopped</span></p>
+        <div id="chart-temperature" class="container"></div>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>
