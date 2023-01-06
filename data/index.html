@@ -7,7 +7,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="icon" type="image/png" href="favicon.png">
     <link rel="stylesheet" type="text/css" href="style.css">
-    <script src="https://code.highcharts.com/highcharts.js"></script>
+    <script src="./highcharts.js"></script>
 </head>
 <body>
     <div class="topnav">
@@ -21,20 +21,24 @@
                     <p class="switch">
                         <input type="range" onchange="updateSliderPWM(this)" id="slider-temp" min="100" max="200" step="5" value ="0" class="slider">
                     </p>
-                    <p class="state"><span id="slider-temp-value"></span> &#8451;</p>
+                    <p class="state"><span id="slider-temp-value">100</span> &#8451;</p>
                 </div>
                 <div class="card">
                     <p class="card-title">Time</p>
                     <p class="switch">
-                        <input type="range" onchange="updateSliderPWM(this)" id="slider-time" min="0" max="40" step="1" value ="0" class="slider">
+                        <input type="range" onchange="updateSliderPWM(this)" id="slider-time" min="1" max="40" step="1" value ="0" class="slider">
                     </p>
-                    <p class="state"><span id="slider-time-value"></span> minutes</p>
+                    <p class="state"><span id="slider-time-value">1</span> minutes</p>
                 </div>
             </div>
         </form>
-        <button onclick="submitForm()">GO!</button>
+        <button id="button-run" onclick="sendRunRequest()">GO!</button>
+        <button id="button-stop" onclick="sendStopRequest()">Stop</button>
         <!-- <button onclick="submitForm()">STOP!</button> -->
-        <p>State: <span id="machine-state">Stopped</span></p>
+        <div id="info">
+            <p>State: <span id="machine-state"></span></p>
+            <p>Time remaining: <span id="machine-time-remaining"></span></p>
+        </div>
         <div id="chart-temperature" class="container"></div>
     </div>
     <script src="script.js"></script>

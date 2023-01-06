@@ -21,32 +21,15 @@
 const char* ssid = "192";
 const char* password = "1234567890";
 
+const char *soft_ap_ssid = "WifiAirFryer";
+const char *soft_ap_password = "1234567890";
+
 // Create AsyncWebServer object on port 80
 AsyncWebServer server(80);
 // Create a WebSocket object
 
 AsyncWebSocket ws("/ws");
-// Set LED GPIO
-const int ledPin1 = 12;
-const int ledPin2 = 13;
-const int ledPin3 = 14;
 
-String message = "";
-String sliderValue1 = "0";
-String sliderValue2 = "0";
-String sliderValue3 = "0";
-
-int dutyCycle1;
-int dutyCycle2;
-int dutyCycle3;
-
-// setting PWM properties
-const int freq = 5000;
-const int ledChannel1 = 0;
-const int ledChannel2 = 1;
-const int ledChannel3 = 2;
-
-const int resolution = 8;
 
 /**
  * Struct and Enum for State Machine
@@ -54,16 +37,14 @@ const int resolution = 8;
 
 enum State_e {
   RUNNING = 0,
-  STOP,
-  COOLING,
-  HEATING
+  STOPPING,
+  COOLING
 };
 
 static char* state_string[] = {
-  [RUNNING] = "running",
-  [STOP]    = "stop",
-  [COOLING] = "cooling",
-  [HEATING] = "heating"
+  [RUNNING]   = "running",
+  [STOPPING]  = "stopping",
+  [COOLING]   = "cooling"
 }; 
 
 struct StateMachine {
@@ -76,22 +57,59 @@ struct StateMachine {
 
 // Air Fryer State Machine default value
 struct StateMachine airFryer = {
-  STOP,
+  STOPPING,
   0,
   0,
   100,
   0
 };
 
-//Json Variable to Hold Slider Values
-JSONVar json_airFryer;
+#define SAFETY_TEMP_THRESHOLD   80
+#define THERMOCOUPLE_PIN        33 //ADC2_CH8
+#define FAN_PIN                 23
+#define RELAY_PIN               22
+#define MINUS_LED_1             27
+#define LED_POWER               5
+#define BUZZER_PIN              33
 
-//Get Update Package
-String getUpdatePackage(){
-  json_airFryer["state"] = String(state_string[airFryer.state]);
-  json_airFryer["timeRemain"] = String(airFryer.timeRemain);
-  json_airFryer["setTemp"] = String(airFryer.setTemp);
-  json_airFryer["setTime"] = String(airFryer.setTime);
+/**
+ * Action Handlers Function
+*/
+void updateActionHandler(JSONVar request);
+void runActionHandler(JSONVar request);
+void stopActionHandler(JSONVar request);
+
+/**
+ * RTOS Tasks
+*/
+void task_Timer(void* parameter); // decrease timeRemaining after 1 minute if it > 0
+void task_Heating(void* parameter); // keep temperature at set point
+void task_Safety(void* parameter); // turn off if the temperature so high
+void task_Cooling(void* parameter); // turn on fan until temperature go below 50*C
+void task_UpdateCurrentTemp(void* parameter); // update current temperature
+
+
+/**
+ * Working with hardware
+*/
+int getCurrentTemperature();
+void turnOnFan();
+void turnOffFan();
+void turnOnHeat();
+void turnOffHeat();
+void turnOnPowerLed();
+void beepBuzzer();
+
+//Get Response
+String createResponse(enum State_e state, int timeRemain, int setTemp, int setTime, int currentTemp){
+  
+  JSONVar json_airFryer;
+
+  json_airFryer["state"] = String(state_string[state]);
+  json_airFryer["timeRemain"] = String(timeRemain);
+  json_airFryer["setTemp"] = String(setTemp);
+  json_airFryer["setTime"] = String(setTime);
+  json_airFryer["currentTemp"] = String(currentTemp);
 
   String jsonString = JSON.stringify(json_airFryer);
 
@@ -110,14 +128,26 @@ void initFS() {
 
 // Initialize WiFi
 void initWiFi() {
-  WiFi.mode(WIFI_STA);
+  WiFi.mode(WIFI_MODE_APSTA);
+  // WiFi.beginSmartConfig();
+  // while (!WiFi.smartConfigDone()) {
+  //   delay(500);
+  //   Serial.print(".");
+  // }
+  WiFi.softAP(soft_ap_ssid, soft_ap_password);
   WiFi.begin(ssid, password);
   Serial.print("Connecting to WiFi ..");
-  while (WiFi.status() != WL_CONNECTED) {
-    Serial.print('.');
-    delay(1000);
-  }
+  // while (WiFi.status() != WL_CONNECTED) {
+  //   Serial.print('.');
+  //   delay(1000);
+  // }
+  Serial.print("ESP32 IP as soft AP: ");
+  Serial.println(WiFi.softAPIP());
+  Serial.print("ESP32 IP on the WiFi network: ");
   Serial.println(WiFi.localIP());
+  // WiFi.mode(WIFI_AP);
+  // WiFi.softAP(ssid, password);
+  // Serial.println(WiFi.softAPIP());
 }
 
 void notifyClients(String response) {
@@ -128,30 +158,23 @@ void handleWebSocketMessage(void *arg, uint8_t *data, size_t len) {
   AwsFrameInfo *info = (AwsFrameInfo*)arg;
   if (info->final && info->index == 0 && info->len == len && info->opcode == WS_TEXT) {
     data[len] = 0;
-    message = (char*)data;
-    JSONVar json = JSON.parse(message);
+    String message = (char*)data;
+    JSONVar request = JSON.parse(message);
 
     // JSON.typeof(jsonVar) can be used to get the type of the variable
-    if (JSON.typeof(json) == "undefined") {
+    if (JSON.typeof(request) == "undefined") {
       Serial.println("Parsing input failed!");
       return;
     }
-    if (json.hasOwnProperty("action") && json.hasOwnProperty("setTemperature") && json.hasOwnProperty("setTime")) {
-      Serial.print("json[\"action\"] = ");
-      Serial.println((const char*) json["action"]);
+    if (request.hasOwnProperty("action") && request.hasOwnProperty("setTemperature") && request.hasOwnProperty("setTime")) {
+      
+      Serial.printf("[INFO] Request received: %s \n", JSON.stringify(request).c_str());
 
-      if (strcmp((const char*) json["action"], "update") == 0) {
-        notifyClients(getUpdatePackage());
-      }
+      String action = (const char*) request["action"];
 
-      if (strcmp((const char*) json["action"], "heat") == 0) {
-        airFryer.setTemp = atoi(json["setTemperature"]);
-        airFryer.setTime = atoi(json["setTime"]);
-        Serial.printf("setTemp %d | setTime %d", airFryer.setTemp, airFryer.setTime);
-        // Serial.print("json[\"setTemperature\"] = ");
-        // Serial.println(atoi(json["setTemperature"]));
-        notifyClients(getUpdatePackage());
-      }
+      if (action == "update") updateActionHandler(request);
+      if (action == "run")    runActionHandler(request);
+      if (action == "stop")   stopActionHandler(request);
 
     }
   }
@@ -181,21 +204,8 @@ void initWebSocket() {
 
 void setup() {
   Serial.begin(115200);
-  pinMode(ledPin1, OUTPUT);
-  pinMode(ledPin2, OUTPUT);
-  pinMode(ledPin3, OUTPUT);
   initFS();
   initWiFi();
-
-  // configure LED PWM functionalitites
-  ledcSetup(ledChannel1, freq, resolution);
-  ledcSetup(ledChannel2, freq, resolution);
-  ledcSetup(ledChannel3, freq, resolution);
-
-  // attach the channel to the GPIO to be controlled
-  ledcAttachPin(ledPin1, ledChannel1);
-  ledcAttachPin(ledPin2, ledChannel2);
-  ledcAttachPin(ledPin3, ledChannel3);
 
 
   initWebSocket();
@@ -207,15 +217,176 @@ void setup() {
   
   server.serveStatic("/", SPIFFS, "/");
 
+  
+
   // Start server
   server.begin();
 
+  // Set up pins
+  pinMode(FAN_PIN, OUTPUT);
+  pinMode(RELAY_PIN, OUTPUT);
+
+  // Turn on power LED
+  turnOnPowerLed();
+
+  // Start heating logic thread
+  xTaskCreate(&task_Timer, "task_Timer", 1024, NULL, 4, NULL);
+  xTaskCreate(&task_UpdateCurrentTemp, "task_UpdateCurrentTemp", 1024, NULL, 4, NULL);
+  xTaskCreate(&task_Cooling, "task_Cooling", 1024, NULL, 4, NULL);
+  xTaskCreate(&task_Heating, "task_Heating", 1024, NULL, 4, NULL);
 }
 
 void loop() {
-  ledcWrite(ledChannel1, dutyCycle1);
-  ledcWrite(ledChannel2, dutyCycle2);
-  ledcWrite(ledChannel3, dutyCycle3);
-
   ws.cleanupClients();
+}
+
+int getSetTempFromRequest(JSONVar request) {
+  return atoi(request["setTemperature"]);
+}
+
+int getSetTimeFromRequest(JSONVar request) {
+  return atoi(request["setTime"]);
+}
+
+void updateActionHandler(JSONVar request) {
+  notifyClients(createResponse(airFryer.state, airFryer.timeRemain, airFryer.setTemp, airFryer.setTime, airFryer.currentTemp));
+}
+
+void runActionHandler(JSONVar request) {
+  if (airFryer.state == RUNNING) {
+    Serial.printf("[INFO] Run action has already been executed.\n");
+    return;
+  }
+  // execute run action
+  airFryer.state = RUNNING;
+  airFryer.setTemp = getSetTempFromRequest(request) > 165 ? 165 : getSetTempFromRequest(request);
+  airFryer.setTime = getSetTimeFromRequest(request);
+  airFryer.timeRemain = airFryer.setTime;
+  // for debugging
+  Serial.printf("[INFO] Run action executing with setTemp = %d, setTime = %d.\n", 
+                  airFryer.setTemp, airFryer.setTime);
+  // Response to client
+  notifyClients(createResponse(airFryer.state, airFryer.timeRemain, 
+                              airFryer.setTemp, airFryer.setTime, airFryer.currentTemp));
+}
+
+
+
+void stopActionHandler(JSONVar request) {
+  if (airFryer.state == RUNNING) {
+    airFryer.state = COOLING;
+    airFryer.timeRemain = 0;
+
+    // For debugging
+    Serial.printf("[INFO] Stop action executing. Changed to COOLING state.\n");
+
+    // Response to client
+    notifyClients(createResponse(airFryer.state, airFryer.timeRemain, 
+                                airFryer.setTemp, airFryer.setTime, airFryer.currentTemp));
+  }
+}
+
+/**
+ * RTOS Tasks Definition
+*/
+
+void task_Timer(void* parameter) {
+  while(true) {
+    vTaskDelay(60000 / portTICK_PERIOD_MS);
+    if (airFryer.state == RUNNING) {
+      if (airFryer.timeRemain > 0) {
+        airFryer.timeRemain--;
+      } 
+      if (airFryer.timeRemain == 0) {
+        airFryer.state = COOLING;
+        beepBuzzer();
+      }
+    }
+  }
+} 
+
+void task_UpdateCurrentTemp(void* parameter) {
+  while(true) {
+    vTaskDelay(500 / portTICK_PERIOD_MS);
+    airFryer.currentTemp = getCurrentTemperature();
+  }
+}
+
+void task_Heating(void* parameter) {
+  int onOffControlThreshold = 5;
+  while(true) {
+
+    int onThreshold = airFryer.setTemp - onOffControlThreshold;
+    int offThreshold = airFryer.setTemp + onOffControlThreshold;
+    if (airFryer.state == RUNNING) {
+      if ((getCurrentTemperature() <= onThreshold)) {
+        turnOnHeat();
+        turnOnFan();
+      }
+      if (getCurrentTemperature() >= offThreshold) {
+        turnOffHeat();
+      }
+    }
+    vTaskDelay(500 / portTICK_PERIOD_MS);
+  }
+}
+void task_Safety(void* parameter) {
+
+}
+void task_Cooling(void* parameter) {
+  
+  int safetyTemperature = SAFETY_TEMP_THRESHOLD;
+
+  while(true) {
+    vTaskDelay(1000 / portTICK_PERIOD_MS);
+    if (airFryer.state == COOLING) {
+      turnOnFan();
+      turnOffHeat();
+      if (getCurrentTemperature() < safetyTemperature) {
+        airFryer.state = STOPPING;
+        turnOffFan();
+      }
+    }
+  }
+}
+
+/**
+ * Working with hardware
+*/
+
+int getCurrentTemperature() {
+  int adcValue = analogRead(THERMOCOUPLE_PIN);
+  int temp = 0.0418*adcValue - 1;
+  return temp;
+}
+
+void turnOnFan() {
+  digitalWrite(FAN_PIN, HIGH);
+  // Serial.println("[INFO] Turned ON Fan.");
+}
+
+void turnOffFan() {
+  digitalWrite(FAN_PIN, LOW);
+  // Serial.println("[INFO] Turned OFF Fan.");
+}
+
+void turnOnHeat() {
+  digitalWrite(RELAY_PIN, HIGH);
+  // Serial.println("[INFO] Turned ON Heating.");
+}
+
+void turnOffHeat() {
+  digitalWrite(RELAY_PIN, LOW);
+  // Serial.println("[INFO] Turned OFF Heating.");
+}
+
+void turnOnPowerLed() {
+  pinMode(LED_POWER, OUTPUT);
+  pinMode(MINUS_LED_1, OUTPUT);
+  digitalWrite(LED_POWER, HIGH);
+  digitalWrite(MINUS_LED_1, LOW);
+}
+
+void beepBuzzer() {
+  pinMode(BUZZER_PIN, OUTPUT);
 }

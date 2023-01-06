@@ -8,10 +8,6 @@ function onload(event) {
     initWebSocket();
 }
 
-function getValues(){
-    var jsonString = createPackage('update', 0, 0);
-    websocket.send(jsonString);
-}
 
 function initWebSocket() {
     console.log('Trying to open a WebSocket connection…');
@@ -23,7 +19,7 @@ function initWebSocket() {
 
 function onOpen(event) {
     console.log('Connection opened');
-    getValues();
+    sendUpdateRequest();
 }
 
 function onClose(event) {
@@ -34,35 +30,43 @@ function onClose(event) {
 function updateSliderPWM(element) {
     var sliderValue = document.getElementById(element.id).value;
     document.getElementById(element.id + "-value").innerHTML = sliderValue;
-    console.log(sliderValue);
+    // console.log(sliderValue);
     // websocket.send(sliderNumber+"s"+sliderValue.toString());
 }
 
-function createPackage(action, setTemperature, setTime) {
-    var jsonString = JSON.stringify({
+function createRequest(action, setTemperature, setTime) {
+    var request = JSON.stringify({
         'action': action,
         'setTemperature': setTemperature,
         'setTime': setTime
     })
-
-    return jsonString;
+    
+    return request;
 }
 
-function submitForm(){
+function sendUpdateRequest(){
+    var request = createRequest('update', 0, 0);
+    websocket.send(request);
+}
 
+function sendRunRequest() {
+    
     var setTemperature = document.querySelector('#slider-temp').value
     var setTime = document.querySelector('#slider-time').value
 
-    // console.table({
-    //     temp: setTemperature,
-    //     time: setTime
-    // })
+    var request = createRequest('run', setTemperature, setTime);
+    
+    console.log(request);
+    
+    websocket.send(request);
+}
 
-    var jsonString = createPackage('heat', setTemperature, setTime);
+function sendStopRequest() {
+    var request = createRequest('stop', 100, 0);
 
-    console.log(jsonString);
+    console.log(request);
 
-    websocket.send(jsonString);
+    websocket.send(request);
 }
 
 function onMessage(event) {
@@ -75,11 +79,14 @@ function onMessage(event) {
     //     document.getElementById(key).innerHTML = myObj[key];
     //     document.getElementById("slider"+ (i+1).toString()).value = myObj[key];
     // }
-    document.getElementById('machine-state').innerText = myObj['state']
-    document.getElementById('slider-temp').value = myObj['setTemp']
-    document.getElementById('slider-time').value = myObj['setTime']
-    document.getElementById("slider-temp-value").innerHTML = myObj['setTemp'];
-    document.getElementById("slider-time-value").innerHTML = myObj['setTime'];
+    document.getElementById('machine-state').innerText = myObj['state'];
+    document.getElementById('machine-time-remaining').innerText = myObj['timeRemain']
+    // document.getElementById('slider-temp').value = myObj['setTemp']
+    // document.getElementById('slider-time').value = myObj['setTime']
+    // document.getElementById("slider-temp-value").innerHTML = myObj['setTemp'];
+    // document.getElementById("slider-time-value").innerHTML = myObj['setTime'];
+
+    updateTemperatureChart(myObj['currentTemp']);
 }
 
 /**
@@ -109,9 +116,9 @@ var chartT = new Highcharts.Chart({
     credits: { enabled: false }
 });
 
-function updateTemperatureChart() {
+function updateTemperatureChart(temperature) {
     var x = (new Date()).getTime(),
-        y = parseFloat(Math.random().toFixed(2));
+        y = parseFloat(temperature);
     //console.log(this.responseText);
     if(chartT.series[0].data.length > 40) {
         chartT.series[0].addPoint([x, y], true, true, true);
@@ -120,6 +127,6 @@ function updateTemperatureChart() {
     }
 }
 
-setInterval(updateTemperatureChart, 3000) ;
+setInterval(sendUpdateRequest, 5000);
 
 
