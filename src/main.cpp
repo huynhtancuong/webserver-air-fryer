@@ -130,22 +130,26 @@ void initFS() {
 // Initialize WiFi
 void initWiFi() {
   WiFi.mode(WIFI_MODE_APSTA);
+  // WiFi.mode(WIFI_MODE_STA);
   // WiFi.beginSmartConfig();
   // while (!WiFi.smartConfigDone()) {
   //   delay(500);
   //   Serial.print(".");
   // }
-  WiFi.softAP(soft_ap_ssid, soft_ap_password);
   WiFi.begin(ssid, password);
   Serial.print("Connecting to WiFi ..");
-  // while (WiFi.status() != WL_CONNECTED) {
+  // for (int i = 0; i < 5; i++) {
+  //   if (WiFi.status() == WL_CONNECTED) break;
   //   Serial.print('.');
-  //   delay(1000);
+  //   // delay(1000);
   // }
-  Serial.print("ESP32 IP as soft AP: ");
-  Serial.println(WiFi.softAPIP());
+  Serial.println();
   Serial.print("ESP32 IP on the WiFi network: ");
   Serial.println(WiFi.localIP());
+  // delay(1000);
+  WiFi.softAP(soft_ap_ssid, soft_ap_password);
+  Serial.print("ESP32 IP as soft AP: ");
+  Serial.println(WiFi.softAPIP());
   // WiFi.mode(WIFI_AP);
   // WiFi.softAP(ssid, password);
   // Serial.println(WiFi.softAPIP());
@@ -216,7 +220,7 @@ void setup() {
     request->send(SPIFFS, "/index.html", "text/html");
   });
   
-  server.serveStatic("/", SPIFFS, "/");
+  server.serveStatic("/", SPIFFS, "/").setCacheControl("public, must-revalidate");
 
   
 

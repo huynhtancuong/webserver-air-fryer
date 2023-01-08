@@ -8,6 +8,7 @@
     <link rel="icon" type="image/png" href="favicon.png">
     <link rel="stylesheet" type="text/css" href="style.css">
     <script src="./highcharts.js"></script>
+    
 </head>
 <body>
     <div class="topnav">
@@ -35,12 +36,23 @@
         <button id="button-run" onclick="sendRunRequest()">GO!</button>
         <button id="button-stop" onclick="sendStopRequest()">Stop</button>
         <!-- <button onclick="submitForm()">STOP!</button> -->
-        <div id="info">
-            <p>State: <span id="machine-state"></span></p>
-            <p>Time remaining: <span id="machine-time-remaining"></span></p>
-        </div>
+        <table id="info">
+            <tr>
+                <th>Status</th>
+                <th><span id="machine-state">Stop</span></th>
+            </tr>
+            <tr>
+                <th>Time remaining (minute)</th>
+                <th><span id="machine-time-remaining">7</span></th>
+            </tr>
+            <tr>
+                <th>Current temperature (&#8451;)</th>
+                <th><span id="machine-current-temperature">70</span></th>
+            </tr>
+        </table>
         <div id="chart-temperature" class="container"></div>
     </div>
     <script src="script.js"></script>
+    
 </body>
 </html>

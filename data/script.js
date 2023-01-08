@@ -80,7 +80,8 @@ function onMessage(event) {
     //     document.getElementById("slider"+ (i+1).toString()).value = myObj[key];
     // }
     document.getElementById('machine-state').innerText = myObj['state'];
-    document.getElementById('machine-time-remaining').innerText = myObj['timeRemain']
+    document.getElementById('machine-time-remaining').innerText = myObj['timeRemain'];
+    document.getElementById('machine-current-temperature').innerText = myObj['currentTemp'];
     // document.getElementById('slider-temp').value = myObj['setTemp']
     // document.getElementById('slider-time').value = myObj['setTime']
     // document.getElementById("slider-temp-value").innerHTML = myObj['setTemp'];
