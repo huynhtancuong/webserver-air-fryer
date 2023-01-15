@@ -15,15 +15,9 @@
 #include "SPIFFS.h"
 #include <Arduino_JSON.h>
 #include <string>
-// #include <AsyncElegantOTA.h>
+#include <AsyncElegantOTA.h>
+#include "credentials.h"
 
-
-// Replace with your network credentials
-const char* ssid = "192";
-const char* password = "1234567890";
-
-const char *soft_ap_ssid = "WifiAirFryer";
-const char *soft_ap_password = "1234567890";
 
 // Create AsyncWebServer object on port 80
 AsyncWebServer server(80);
@@ -42,7 +36,7 @@ enum State_e {
   COOLING
 };
 
-static char* state_string[] = {
+static const char* const state_string[] = {
   [RUNNING]   = "running",
   [STOPPING]  = "stopping",
   [COOLING]   = "cooling"
@@ -138,15 +132,13 @@ void initWiFi() {
   // }
   WiFi.begin(ssid, password);
   Serial.print("Connecting to WiFi ..");
-  // for (int i = 0; i < 5; i++) {
-  //   if (WiFi.status() == WL_CONNECTED) break;
-  //   Serial.print('.');
-  //   // delay(1000);
-  // }
+  for (int i = 0; i < 5; i++) {
+    if (WiFi.status() == WL_CONNECTED) break;
+    Serial.print('.');
+  }
   Serial.println();
   Serial.print("ESP32 IP on the WiFi network: ");
   Serial.println(WiFi.localIP());
-  // delay(1000);
   WiFi.softAP(soft_ap_ssid, soft_ap_password);
   Serial.print("ESP32 IP as soft AP: ");
   Serial.println(WiFi.softAPIP());
@@ -222,8 +214,8 @@ void setup() {
   
   server.serveStatic("/", SPIFFS, "/").setCacheControl("public, must-revalidate");
 
-  
-
+  // Start AsyncElegantOTA
+  AsyncElegantOTA.begin(&server);    
   // Start server
   server.begin();
 
