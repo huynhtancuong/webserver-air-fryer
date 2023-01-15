@@ -137,3 +137,22 @@ html {
   #button-stop:hover {
       background-color: #d61313;
   }
+
+  #button-logout {
+    background-color: #8d0909;
+    border: none;
+    padding: 14px 20px;
+    text-align: center;
+    font-size: 20px;
+    border-radius: 4px;
+    transition-duration: 0.4s;
+    width: 50%;
+    color: white;
+    cursor: pointer;
+    margin-top: 10px;
+    margin-bottom: 20px;
+  }
+  
+  #button-logout:hover {
+      background-color: #d61313;
+  }

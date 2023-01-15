@@ -27,6 +27,13 @@ function onClose(event) {
     setTimeout(initWebSocket, 2000);
 }
 
+function logoutButton() {
+    var xhr = new XMLHttpRequest();
+    xhr.open("GET", "/logout", true);
+    xhr.send();
+    setTimeout(function(){ window.open("/logged-out","_self"); }, 1000);
+  }
+
 function updateSliderPWM(element) {
     var sliderValue = document.getElementById(element.id).value;
     document.getElementById(element.id + "-value").innerHTML = sliderValue;

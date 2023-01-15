@@ -209,13 +209,23 @@ void setup() {
   
   // Web Server Root URL
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
+    if(!request->authenticate(http_username, http_password))
+      return request->requestAuthentication();
     request->send(SPIFFS, "/index.html", "text/html");
+  });
+
+  server.on("/logout", HTTP_GET, [](AsyncWebServerRequest *request){
+    request->send(401);
+  });
+
+  server.on("/logged-out", HTTP_GET, [](AsyncWebServerRequest *request){
+    request->send(SPIFFS, "/logout.html", "text/html");
   });
   
   server.serveStatic("/", SPIFFS, "/").setCacheControl("public, must-revalidate");
 
   // Start AsyncElegantOTA
-  AsyncElegantOTA.begin(&server);    
+  AsyncElegantOTA.begin(&server, ota_username, ota_password);    
   // Start server
   server.begin();
 
